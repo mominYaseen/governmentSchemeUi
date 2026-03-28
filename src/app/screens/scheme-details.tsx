@@ -13,6 +13,8 @@ import { Card } from '../components/ui/card';
 import { EligibilityBadge } from '../components/eligibility-badge';
 import { getSchemeByIdFromStorage } from '../api/scheme-results-storage';
 import { Separator } from '../components/ui/separator';
+import { SaveSchemeButton } from '../components/save-scheme-button';
+import { applyLinkDisplayLabel, normalizedApplyUrl } from '../utils/apply-link';
 
 /** Strip list markers so UI numbering is not duplicated (API + mock data). */
 function presentationStepText(raw: string): string {
@@ -57,6 +59,7 @@ export function SchemeDetails() {
 
   const applySteps = scheme.applicationSteps.map(presentationStepText).filter((s) => s.length > 0);
   const applyBlock = textOrNull(scheme.howToApplyBlock);
+  const schemeApplyUrl = normalizedApplyUrl(scheme.officialLink);
 
   const eligibilityTitle =
     scheme.eligibility === 'eligible'
@@ -203,8 +206,8 @@ export function SchemeDetails() {
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground rounded-lg border border-dashed border-border bg-muted/30 px-4 py-6 text-center">
-                  No step-by-step instructions were included for this scheme. Use &quot;Apply now&quot; when a link
-                  is available.
+                  No step-by-step instructions were included for this scheme. Use the apply link in the sidebar when
+                  the portal provides one.
                 </p>
               )}
             </Card>
@@ -212,38 +215,26 @@ export function SchemeDetails() {
 
           <div className="sticky top-20 space-y-6 self-start">
             <Card className="p-6">
-              <h3 className="font-semibold mb-4">Quick Actions</h3>
+              <div className="flex items-start justify-between gap-2 mb-4">
+                <h3 className="font-semibold">Quick Actions</h3>
+                <SaveSchemeButton schemeId={scheme.id} />
+              </div>
               <div className="space-y-3">
-                {scheme.officialLink && scheme.officialLink !== '#' ? (
-                  <>
-                    <Button className="w-full" size="lg" asChild>
-                      <a
-                        href={scheme.officialLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-2"
-                      >
-                        Apply Now
-                        <ExternalLink className="h-4 w-4" />
-                      </a>
-                    </Button>
-
-                    <Button variant="outline" className="w-full" size="lg" asChild>
-                      <a
-                        href={scheme.officialLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-2"
-                      >
-                        Visit Official Website
-                        <ExternalLink className="h-4 w-4" />
-                      </a>
-                    </Button>
-                  </>
+                {schemeApplyUrl ? (
+                  <Button className="w-full" size="lg" asChild>
+                    <a
+                      href={schemeApplyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2"
+                      title={schemeApplyUrl}
+                    >
+                      {applyLinkDisplayLabel(schemeApplyUrl)}
+                      <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
+                    </a>
+                  </Button>
                 ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No apply URL was returned for this scheme. Check the steps below.
-                  </p>
+                  <p className="text-sm text-muted-foreground italic">Not available</p>
                 )}
               </div>
 

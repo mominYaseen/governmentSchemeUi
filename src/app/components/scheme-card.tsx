@@ -19,6 +19,9 @@ import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
+import { SaveSchemeButton } from './save-scheme-button';
+import { normalizeStringList } from '../utils/normalize-string-list';
+import { applyLinkDisplayLabel, normalizedApplyUrl } from '../utils/apply-link';
 
 type SchemeCardProps =
   | { scheme: Scheme; catalogSummary?: never }
@@ -39,26 +42,6 @@ function EmptyField() {
 function textOrNull(v: string | null | undefined): string | null {
   const t = v?.trim();
   return t ? t : null;
-}
-
-/** Backend may send a JSON array or a single delimited string. */
-function normalizeStringList(value: unknown): string[] {
-  if (value == null) return [];
-  if (Array.isArray(value)) {
-    return value
-      .map((x) => (typeof x === 'string' ? x : x != null ? String(x) : ''))
-      .map((s) => s.trim())
-      .filter(Boolean);
-  }
-  if (typeof value === 'string') {
-    const t = value.trim();
-    if (!t) return [];
-    return t
-      .split(/[,;|\n]+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-  }
-  return [];
 }
 
 function presentationStepText(raw: string): string {
@@ -147,45 +130,75 @@ function CatalogSchemeCardInner({ summary }: { summary: SchemeSummary }) {
     };
   }, [open, summary.id]);
 
-  const meta = [summary.govLevel, summary.source].filter(Boolean).join(' · ') || 'Government scheme';
+  const levelBadgeText =
+    textOrNull(summary.levelBadge) ?? textOrNull(summary.govLevel) ?? 'Government scheme';
+  const devSourceTitle =
+    import.meta.env.DEV && textOrNull(summary.source)
+      ? `Data pipeline: ${summary.source}`
+      : undefined;
+
+  const cardSubtitle = textOrNull(summary.cardSubtitle);
+  const categoryChips = normalizeStringList(summary.categories);
+  const badgeNorm = levelBadgeText.trim().toLowerCase();
+  const govNorm = textOrNull(summary.govLevel)?.toLowerCase() ?? '';
+  const showGovSubtitleFallback =
+    !cardSubtitle &&
+    categoryChips.length === 0 &&
+    govNorm.length > 0 &&
+    govNorm !== badgeNorm;
 
   const titleName = textOrNull(detail?.name) ?? summary.name;
-  const applyHref = (detail?.applyUrl ?? summary.applyUrl)?.trim() || null;
+  const applyHref =
+    normalizedApplyUrl(detail?.applyUrl) ?? normalizedApplyUrl(summary.applyUrl);
+  const catalogApply = normalizedApplyUrl(summary.applyUrl);
 
   return (
     <>
       <Card className="group overflow-hidden transition-all hover:shadow-lg">
         <div className="p-6">
           <div className="flex items-start justify-between gap-4 mb-4">
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-2">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
                   <Briefcase className="h-5 w-5 text-primary" />
                 </div>
-                <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-1 rounded">
-                  {meta}
+                <span
+                  className="text-xs font-medium text-muted-foreground bg-muted px-2 py-1 rounded max-w-[min(100%,14rem)] truncate"
+                  title={devSourceTitle}
+                >
+                  {levelBadgeText}
                 </span>
               </div>
-              <h3 className="font-semibold text-lg text-foreground mb-1 line-clamp-2">
-                {summary.name}
-              </h3>
-              {summary.slug ? (
-                <p className="text-xs text-muted-foreground font-mono truncate">{summary.slug}</p>
+              <h3 className="font-semibold text-lg text-foreground line-clamp-2">{summary.name}</h3>
+              {cardSubtitle ? (
+                <p className="text-sm text-muted-foreground line-clamp-2 mt-1.5">{cardSubtitle}</p>
+              ) : categoryChips.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {categoryChips.map((c, i) => (
+                    <Badge key={`${c}-${i}`} variant="outline" className="text-xs font-normal">
+                      {c}
+                    </Badge>
+                  ))}
+                </div>
+              ) : showGovSubtitleFallback ? (
+                <p className="text-sm text-muted-foreground mt-1.5">{textOrNull(summary.govLevel)}</p>
               ) : null}
             </div>
+            <SaveSchemeButton schemeId={summary.id} className="shrink-0" />
           </div>
 
           <div className="flex flex-col gap-2 pt-4 border-t border-border">
-            {summary.applyUrl ? (
+            {catalogApply ? (
               <Button className="w-full" size="sm" asChild>
                 <a
-                  href={summary.applyUrl}
+                  href={catalogApply}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center justify-center gap-2"
+                  title={catalogApply}
                 >
-                  Apply / official link
-                  <ExternalLink className="h-4 w-4" />
+                  {applyLinkDisplayLabel(catalogApply)}
+                  <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
                 </a>
               </Button>
             ) : null}
@@ -351,16 +364,17 @@ function CatalogSchemeCardInner({ summary }: { summary: SchemeSummary }) {
                   <Separator />
 
                   <section className="space-y-2" aria-label="Apply link">
-                    <h4 className="text-xs font-semibold uppercase tracking-wide text-foreground">Apply URL</h4>
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-foreground">Apply</h4>
                     {applyHref ? (
                       <a
                         href={applyHref}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm text-primary underline break-all inline-flex items-center gap-1"
+                        className="text-sm font-medium text-primary underline inline-flex items-center gap-1.5"
+                        title={applyHref}
                       >
-                        {applyHref}
-                        <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                        {applyLinkDisplayLabel(applyHref)}
+                        <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
                       </a>
                     ) : (
                       <EmptyField />
@@ -394,7 +408,10 @@ function FullSchemeCard({ scheme }: { scheme: Scheme }) {
               {scheme.name}
             </h3>
           </div>
-          <EligibilityBadge status={scheme.eligibility} showIcon={false} />
+          <div className="flex items-start gap-1 shrink-0">
+            <SaveSchemeButton schemeId={scheme.id} />
+            <EligibilityBadge status={scheme.eligibility} showIcon={false} />
+          </div>
         </div>
 
         <p className="text-sm text-muted-foreground mb-4 line-clamp-2">

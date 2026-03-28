@@ -1,4 +1,5 @@
 import type { Scheme } from '../data/schemes';
+import { normalizedApplyUrl } from '../utils/apply-link';
 import { apiPost, ApiError } from './client';
 import type {
   EligibleSchemeDto,
@@ -86,7 +87,7 @@ function mapEligible(dto: EligibleSchemeDto): Scheme {
     requiredDocuments: dto.documentsNeeded?.length ? dto.documentsNeeded : [],
     applicationSteps: steps,
     howToApplyBlock: block,
-    officialLink: dto.applyUrl || '#',
+    officialLink: normalizedApplyUrl(dto.applyUrl) ?? '',
     matchKind: 'eligible',
   };
 }
@@ -109,7 +110,7 @@ function mapNearMiss(dto: NearMissSchemeDto): Scheme {
     requiredDocuments: [],
     applicationSteps: steps,
     howToApplyBlock: block,
-    officialLink: '#',
+    officialLink: normalizedApplyUrl(dto.applyUrl) ?? '',
     matchKind: 'near-miss',
   };
 }

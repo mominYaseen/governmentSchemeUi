@@ -3,6 +3,7 @@ import { Loader2, Search } from 'lucide-react';
 import { fetchSchemesPage } from '../api/schemes-api';
 import { ApiError } from '../api/client';
 import type { SchemeSummary } from '../api/types';
+import { normalizeStringList } from '../utils/normalize-string-list';
 import { SchemeCard } from '../components/scheme-card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -21,7 +22,17 @@ function filterContent(rows: SchemeSummary[], q: string): SchemeSummary[] {
   const t = q.trim().toLowerCase();
   if (!t) return rows;
   return rows.filter((s) => {
-    const hay = [s.name, s.slug, s.id, s.govLevel, s.source, s.applyUrl]
+    const cats = normalizeStringList(s.categories);
+    const hay = [
+      s.name,
+      s.slug,
+      s.id,
+      s.govLevel,
+      s.levelBadge,
+      s.cardSubtitle,
+      ...cats,
+      s.applyUrl,
+    ]
       .filter(Boolean)
       .join(' ')
       .toLowerCase();
@@ -96,7 +107,7 @@ export function Catalog() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 type="search"
-                placeholder="Filter this page by name, slug, level…"
+                placeholder="Filter by name, subtitle, categories, level…"
                 className="pl-9 min-h-11 text-base"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}

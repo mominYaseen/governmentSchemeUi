@@ -11,7 +11,8 @@ React + Vite UI for discovering Indian government schemes: **paginated catalog**
 
 | Variable | Description |
 |----------|-------------|
-| `VITE_API_BASE_URL` | Optional. Full origin of the API **without** a trailing slash, e.g. `http://localhost:8080`. If unset, requests use relative URLs like `/api/...` (Vite dev server proxies `/api` to `8080` per `vite.config.ts`). |
+| `VITE_API_BASE_URL` | Recommended for **sign-in**: full API origin **without** a trailing slash (e.g. `http://localhost:8080`) so session and CSRF cookies are set on the Spring host. If unset, requests use relative `/api/...` (Vite dev proxy). |
+| `VITE_AUTH_MODE` | Omit or any value except `oauth2` = **demo** login (`POST /api/auth/login`). Set to `oauth2` for **Google** redirect and `/auth/callback`. |
 
 ## Scripts
 
@@ -32,6 +33,8 @@ Optional: `npm run backend` runs the packaged JAR from a sibling repo path; use 
 
 The UI reads successful payloads from the standard envelope: `response.data` after unwrapping `success` / `error` (implemented in `src/app/api/client.ts`).
 
+**Session (demo auth):** `GET /api/auth/status` (always 200) supplies `data.authenticated` and primes the CSRF cookie. Mutating calls send `X-XSRF-TOKEN` from the `XSRF-TOKEN` cookie. `GET /api/me` returning 401 while anonymous is normal and is not shown as a login error.
+
 ## App routes
 
 | Path | Purpose |
@@ -39,7 +42,7 @@ The UI reads successful payloads from the standard envelope: `response.data` aft
 | `/` | Landing + quick “describe” search → `/match` |
 | `/catalog` | `GET /api/schemes` — paginated cards; **View summary** loads `GET /api/schemes/{id}` |
 | `/recommend` | `POST /api/schemes/recommend` — structured profile form |
-| `/match` | `POST /api/schemes/match` — textarea + optional `lang` (`en` / `hi` / `ur` / `ks`) |
+| `/match` | `POST /api/schemes/match` — textarea; responses requested in English (`language: en`) |
 | `/results?...` | Redirects to `/match` with the same query string (legacy) |
 | `/scheme/:id` | Detail view for schemes stored from the last match session |
 

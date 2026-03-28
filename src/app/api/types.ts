@@ -7,6 +7,11 @@ export interface ApiResponse<T> {
   timestamp?: string;
 }
 
+/** `GET /api/auth/status` — `data.authenticated` drives session UI (not `/api/me` 401). */
+export interface AuthStatusData {
+  authenticated: boolean;
+}
+
 /** Spring Data `Page<SchemeSummary>` inside `ApiResponse.data` for GET /api/schemes */
 export interface PageSchemeSummary {
   content: SchemeSummary[];
@@ -22,9 +27,17 @@ export interface SchemeSummary {
   id: string;
   name: string;
   slug?: string | null;
+  /** Legacy / fallback when `levelBadge` absent. */
   govLevel?: string | null;
+  /** Pipeline tag (e.g. KAGGLE_CSV); not for citizen-facing level UI. */
   source?: string | null;
   applyUrl?: string | null;
+  /** Programme level for the corner badge only (e.g. Central, State). */
+  levelBadge?: string | null;
+  /** Human-readable line under the title (not internal slug/id). */
+  cardSubtitle?: string | null;
+  /** Category labels for optional chips under the title. */
+  categories?: string[] | string | null;
 }
 
 /** Payload in `ApiResponse.data` for GET /api/schemes/{id} */
@@ -77,7 +90,8 @@ export interface EligibleSchemeDto {
   schemeName: string;
   ministry: string;
   benefits: string;
-  applyUrl: string;
+  /** Set from stored column and/or inferred server-side; optional when absent. */
+  applyUrl?: string | null;
   /** Catalog-style overview; not eligibility explanation. */
   overview?: string | null;
   whyEligible: string;
@@ -100,6 +114,7 @@ export interface NearMissSchemeDto {
   /** Fallback how-to text when `applySteps` is empty. */
   howToApply?: string | null;
   whatToDo: string;
+  applyUrl?: string | null;
   eligibilityScore: number;
 }
 
@@ -131,3 +146,28 @@ export interface SchemeMatchResponse {
 }
 
 export type HealthData = Record<string, string>;
+
+/** `POST /api/auth/login` data field in demo mode. */
+export interface DemoLoginUserDto {
+  id: string;
+  email: string;
+  displayName: string;
+  provider: string;
+}
+
+/** `GET /api/me` — OAuth2 user info and/or demo profile. */
+export interface MeDto {
+  email?: string | null;
+  name?: string | null;
+  displayName?: string | null;
+  picture?: string | null;
+  sub?: string | null;
+  [key: string]: unknown;
+}
+
+/** Item from `GET /api/me/saved-schemes`. */
+export interface SavedSchemeEntry {
+  schemeId: string;
+  remindEnabled?: boolean | null;
+  [key: string]: unknown;
+}

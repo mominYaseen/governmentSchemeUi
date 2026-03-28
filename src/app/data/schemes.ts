@@ -18,6 +18,7 @@ export interface Scheme {
   applicationSteps: string[];
   /** When `applicationSteps` is empty, render this as one block under How to apply. */
   howToApplyBlock?: string | null;
+  /** Mirrors API `applyUrl` (empty string when absent). */
   officialLink: string;
   /** Set when scheme comes from POST /api/schemes/match (for filters). */
   matchKind?: 'eligible' | 'near-miss';

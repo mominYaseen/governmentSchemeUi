@@ -1,52 +1,39 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router';
 import { Loader2, MessageSquareText } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { SchemeCard } from '../components/scheme-card';
 import type { Scheme } from '../data/schemes';
 import type { MatchLanguage } from '../api/types';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
 import { matchSchemes, SchemeMatchError } from '../api/match-schemes';
-import { persistSchemeResults } from '../api/scheme-results-storage';
+import {
+  persistMatchCache,
+  persistSchemeResults,
+  readMatchCache,
+} from '../api/scheme-results-storage';
 import { Textarea } from '../components/ui/textarea';
 import { Label } from '../components/ui/label';
 
 const MIN_LEN = 3;
+/** Fixed response language for match API and session cache key. */
+const MATCH_RESPONSE_LANG: MatchLanguage = 'en';
+const MATCH_CACHE_LANG_KEY = 'en';
 
 export function Match() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [text, setText] = useState(searchParams.get('q') || '');
-  const [language, setLanguage] = useState<string>('auto');
   const [eligible, setEligible] = useState<Scheme[]>([]);
   const [nearMiss, setNearMiss] = useState<Scheme[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summaryMessage, setSummaryMessage] = useState<string | null>(null);
-  const [meta, setMeta] = useState<{
-    detectedLanguage?: string;
-    processingTimeMs?: number;
-    totalSchemesChecked?: number;
-  } | null>(null);
 
   const queryParam = searchParams.get('q')?.trim() ?? '';
-  const langInUrl = searchParams.get('lang') ?? '';
 
   useEffect(() => {
     setText(searchParams.get('q') || '');
-  }, [searchParams]);
-
-  useEffect(() => {
-    const l = searchParams.get('lang');
-    if (l === 'en' || l === 'hi' || l === 'ur' || l === 'ks') setLanguage(l);
-    else setLanguage('auto');
   }, [searchParams]);
 
   useEffect(() => {
@@ -55,8 +42,22 @@ export function Match() {
       setNearMiss([]);
       setError(null);
       setSummaryMessage(null);
-      setMeta(null);
       setLoading(false);
+      return;
+    }
+
+    const cached = readMatchCache(queryParam, MATCH_CACHE_LANG_KEY);
+    if (cached) {
+      setEligible(cached.eligible);
+      setNearMiss(cached.nearMiss);
+      setSummaryMessage(cached.summaryMessage);
+      setError(null);
+      setLoading(false);
+      persistSchemeResults({
+        query: queryParam,
+        schemes: [...cached.eligible, ...cached.nearMiss],
+        summaryMessage: cached.summaryMessage ?? undefined,
+      });
       return;
     }
 
@@ -64,29 +65,31 @@ export function Match() {
     setLoading(true);
     setError(null);
     setSummaryMessage(null);
-    setMeta(null);
-
-    const langFromUrl =
-      langInUrl === 'en' || langInUrl === 'hi' || langInUrl === 'ur' || langInUrl === 'ks'
-        ? (langInUrl as MatchLanguage)
-        : undefined;
 
     matchSchemes({
       userInput: queryParam,
-      ...(langFromUrl ? { language: langFromUrl } : {}),
+      language: MATCH_RESPONSE_LANG,
     })
       .then(({ eligible: el, nearMiss: nm, raw }) => {
         if (cancelled) return;
         setEligible(el);
         setNearMiss(nm);
         setSummaryMessage(raw.summaryMessage ?? null);
-        setMeta({
+        const nextMeta = {
           detectedLanguage: raw.detectedLanguage,
           processingTimeMs: raw.processingTimeMs,
           totalSchemesChecked: raw.totalSchemesChecked,
-        });
+        };
         const combined = [...el, ...nm];
         persistSchemeResults({ query: queryParam, schemes: combined, summaryMessage: raw.summaryMessage });
+        persistMatchCache({
+          query: queryParam,
+          lang: MATCH_CACHE_LANG_KEY,
+          eligible: el,
+          nearMiss: nm,
+          summaryMessage: raw.summaryMessage ?? null,
+          meta: nextMeta,
+        });
       })
       .catch((e: unknown) => {
         if (cancelled) return;
@@ -107,7 +110,7 @@ export function Match() {
     return () => {
       cancelled = true;
     };
-  }, [queryParam, langInUrl]);
+  }, [queryParam]);
 
   const queryTooShort = queryParam.length > 0 && queryParam.length < MIN_LEN;
   const showEmptyHint = queryParam.length === 0;
@@ -117,20 +120,10 @@ export function Match() {
     const q = text.trim();
     const sp = new URLSearchParams();
     if (q) sp.set('q', q);
-    if (language !== 'auto') sp.set('lang', language);
     navigate({ pathname: '/match', search: sp.toString() ? `?${sp.toString()}` : '' });
   };
 
   const totalShown = eligible.length + nearMiss.length;
-
-  const metaLine = useMemo(() => {
-    if (!meta) return null;
-    const parts: string[] = [];
-    if (meta.detectedLanguage) parts.push(`Language (response): ${meta.detectedLanguage}`);
-    if (meta.processingTimeMs != null) parts.push(`~${meta.processingTimeMs} ms`);
-    if (meta.totalSchemesChecked != null) parts.push(`${meta.totalSchemesChecked} schemes checked`);
-    return parts.length ? parts.join(' · ') : null;
-  }, [meta]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -141,10 +134,6 @@ export function Match() {
               <MessageSquareText className="h-8 w-8 text-primary" />
               Describe in your own words
             </h1>
-            <p className="text-muted-foreground mt-2 text-base">
-              Uses <code className="text-sm bg-muted px-1 rounded">POST /api/schemes/match</code> (AI + rules).
-              Explanations follow the language returned by the API when you pick a response language below.
-            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -161,21 +150,6 @@ export function Match() {
               />
             </div>
             <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
-              <div className="space-y-2 flex-1">
-                <Label className="text-base">Response language (optional)</Label>
-                <Select value={language} onValueChange={setLanguage}>
-                  <SelectTrigger className="min-h-11 w-full sm:max-w-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="auto">Auto (omit — server detects)</SelectItem>
-                    <SelectItem value="en">English (en)</SelectItem>
-                    <SelectItem value="hi">Hindi (hi)</SelectItem>
-                    <SelectItem value="ur">Urdu (ur)</SelectItem>
-                    <SelectItem value="ks">Kashmiri (ks)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
               <Button
                 type="submit"
                 size="lg"
@@ -192,10 +166,6 @@ export function Match() {
                 )}
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Minimum {MIN_LEN} characters. You can also open this page with <code>?q=…</code> and optional{' '}
-              <code>&amp;lang=hi</code>.
-            </p>
           </form>
 
           {error && (
@@ -235,7 +205,6 @@ export function Match() {
                 Results for: <span className="font-medium text-foreground">"{queryParam}"</span>
               </p>
               {summaryMessage && <p className="text-base text-foreground">{summaryMessage}</p>}
-              {metaLine && <p className="text-xs text-muted-foreground">{metaLine}</p>}
             </div>
           )}
 

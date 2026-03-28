@@ -5,6 +5,8 @@ import { SchemeDetails } from './screens/scheme-details';
 import { Recommend } from './screens/recommend';
 import { Catalog } from './screens/catalog';
 import { Match } from './screens/match';
+import { AuthCallback } from './screens/auth-callback';
+import { SavedSchemes } from './screens/saved-schemes';
 import { Navbar } from './components/navbar';
 import { Footer } from './components/footer';
 import { DevHealthBanner } from './components/dev-health-banner';
@@ -65,6 +67,22 @@ export const router = createBrowserRouter([
     element: (
       <RootLayout>
         <Match />
+      </RootLayout>
+    ),
+  },
+  {
+    path: '/auth/callback',
+    element: (
+      <RootLayout>
+        <AuthCallback />
+      </RootLayout>
+    ),
+  },
+  {
+    path: '/me/saved',
+    element: (
+      <RootLayout>
+        <SavedSchemes />
       </RootLayout>
     ),
   },

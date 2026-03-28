@@ -5,10 +5,17 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   server: {
+    // Same-origin `/api` in dev so `credentials: 'include'` can use cookies on the Vite host
+    // (backend must set cookie Path=/ and compatible SameSite).
     proxy: {
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true,
+        secure: false,
+        // Help the browser keep JSESSIONID on the Vite origin (localhost:5173) when Spring
+        // sends Path=/api or a concrete host in Set-Cookie.
+        cookieDomainRewrite: '',
+        cookiePathRewrite: '/',
       },
     },
   },

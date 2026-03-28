@@ -1,20 +1,65 @@
 import type { Scheme } from '../data/schemes';
-import { getApiBaseUrl } from './config';
+import { apiPost, ApiError } from './client';
 import type {
-  ApiResponseSchemeMatchResponse,
   EligibleSchemeDto,
   NearMissSchemeDto,
+  SchemeMatchResponse,
   UserInputRequest,
 } from './types';
 
-function splitLinesOrSingle(text: string): string[] {
-  const t = text.trim();
-  if (!t) return [];
-  const lines = t.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
-  if (lines.length > 1) return lines;
-  const numbered = t.split(/\d+\.\s+/).map((s) => s.trim()).filter(Boolean);
-  if (numbered.length > 1) return numbered;
-  return [t];
+export { ApiError as SchemeMatchError };
+
+function stripStepPrefix(s: string): string {
+  return s
+    .trim()
+    .replace(/^[•\-\*–—]\s+/, '')
+    .replace(/^\d+[\.)]\s*/, '')
+    .trim();
+}
+
+/** Normalize API `applySteps` (array or occasional string/JSON). */
+function normalizeApplyStepsArray(value: unknown): string[] {
+  if (value == null) return [];
+  if (Array.isArray(value)) {
+    return value
+      .map((x) => String(x ?? '').trim())
+      .filter(Boolean)
+      .map(stripStepPrefix)
+      .filter(Boolean);
+  }
+  if (typeof value === 'string') {
+    const t = value.trim();
+    if (!t) return [];
+    if (t.startsWith('[')) {
+      try {
+        const j = JSON.parse(t) as unknown;
+        if (Array.isArray(j)) {
+          return j
+            .map((x) => String(x ?? '').trim())
+            .filter(Boolean)
+            .map(stripStepPrefix)
+            .filter(Boolean);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  return [];
+}
+
+/**
+ * Prefer `applySteps` as ordered list; if empty, use `howToApply` as a single block (do not split into Overview).
+ */
+function resolveMatchApplyDisplay(
+  applyStepsRaw: unknown,
+  howToApply: string | undefined
+): { steps: string[]; block: string | null } {
+  const steps = normalizeApplyStepsArray(applyStepsRaw);
+  if (steps.length > 0) return { steps, block: null };
+  const raw = (howToApply ?? '').trim();
+  if (!raw) return { steps: [], block: null };
+  return { steps: [], block: raw };
 }
 
 function benefitsToList(s: string): string[] {
@@ -25,6 +70,8 @@ function benefitsToList(s: string): string[] {
 }
 
 function mapEligible(dto: EligibleSchemeDto): Scheme {
+  const { steps, block } = resolveMatchApplyDisplay(dto.applySteps, dto.howToApply);
+  const overview = dto.overview?.trim() || null;
   return {
     id: dto.schemeId,
     name: dto.schemeName,
@@ -33,16 +80,21 @@ function mapEligible(dto: EligibleSchemeDto): Scheme {
     eligibility: 'eligible',
     eligibilitySummary: dto.whyEligible,
     benefits: benefitsToList(dto.benefits),
-    fullDescription: [dto.whyEligible, dto.howToApply].filter(Boolean).join('\n\n'),
+    overview,
+    fullDescription: overview || '',
     criteriaList: dto.passedRules?.length ? dto.passedRules : ['See official eligibility on the portal'],
     requiredDocuments: dto.documentsNeeded?.length ? dto.documentsNeeded : [],
-    applicationSteps: splitLinesOrSingle(dto.howToApply),
+    applicationSteps: steps,
+    howToApplyBlock: block,
     officialLink: dto.applyUrl || '#',
     matchKind: 'eligible',
   };
 }
 
 function mapNearMiss(dto: NearMissSchemeDto): Scheme {
+  const howFallback = dto.howToApply?.trim() || dto.whatToDo;
+  const { steps, block } = resolveMatchApplyDisplay(dto.applySteps, howFallback);
+  const overview = dto.overview?.trim() || null;
   return {
     id: dto.schemeId,
     name: dto.schemeName,
@@ -51,10 +103,12 @@ function mapNearMiss(dto: NearMissSchemeDto): Scheme {
     eligibility: 'partial',
     eligibilitySummary: dto.whyNotEligible,
     benefits: benefitsToList(dto.benefits),
-    fullDescription: [dto.whyNotEligible, dto.whatToDo].filter(Boolean).join('\n\n'),
+    overview,
+    fullDescription: overview || '',
     criteriaList: [],
     requiredDocuments: [],
-    applicationSteps: splitLinesOrSingle(dto.whatToDo),
+    applicationSteps: steps,
+    howToApplyBlock: block,
     officialLink: '#',
     matchKind: 'near-miss',
   };
@@ -69,52 +123,25 @@ export function mapMatchResponseToSchemes(data: {
   return [...eligible, ...near];
 }
 
-export class SchemeMatchError extends Error {
-  constructor(
-    message: string,
-    public readonly status?: number
-  ) {
-    super(message);
-    this.name = 'SchemeMatchError';
-  }
-}
-
 export async function matchSchemes(body: UserInputRequest): Promise<{
   schemes: Scheme[];
-  summaryMessage?: string;
-  raw: ApiResponseSchemeMatchResponse;
+  eligible: Scheme[];
+  nearMiss: Scheme[];
+  raw: SchemeMatchResponse;
 }> {
-  const base = getApiBaseUrl();
-  const url = `${base}/api/schemes/match`;
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({
-      userInput: body.userInput,
-      ...(body.language ? { language: body.language } : {}),
-    }),
+  const data = await apiPost<SchemeMatchResponse>('/api/schemes/match', {
+    userInput: body.userInput,
+    ...(body.language ? { language: body.language } : {}),
   });
 
-  let json: ApiResponseSchemeMatchResponse;
-  try {
-    json = (await res.json()) as ApiResponseSchemeMatchResponse;
-  } catch {
-    throw new SchemeMatchError('Invalid response from server', res.status);
-  }
+  const eligible = (data.eligibleSchemes ?? []).map(mapEligible);
+  const nearMiss = (data.nearMissSchemes ?? []).map(mapNearMiss);
+  const schemes = [...eligible, ...nearMiss];
 
-  if (!res.ok) {
-    throw new SchemeMatchError(json?.error || res.statusText || 'Request failed', res.status);
-  }
-
-  if (!json.success || !json.data) {
-    throw new SchemeMatchError(json.error || 'No data returned');
-  }
-
-  const schemes = mapMatchResponseToSchemes(json.data);
   return {
     schemes,
-    summaryMessage: json.data.summaryMessage,
-    raw: json,
+    eligible,
+    nearMiss,
+    raw: data,
   };
 }

@@ -8,10 +8,16 @@ export interface Scheme {
   eligibility: EligibilityStatus;
   eligibilitySummary: string;
   benefits: string[];
+  /** Long-form copy (e.g. mocks); detail page Overview uses `overview` instead. */
   fullDescription: string;
+  /** Short narrative for the Overview section only. */
+  overview?: string | null;
   criteriaList: string[];
   requiredDocuments: string[];
+  /** Ordered steps from `applySteps` or parsed legacy text. */
   applicationSteps: string[];
+  /** When `applicationSteps` is empty, render this as one block under How to apply. */
+  howToApplyBlock?: string | null;
   officialLink: string;
   /** Set when scheme comes from POST /api/schemes/match (for filters). */
   matchKind?: 'eligible' | 'near-miss';
@@ -22,6 +28,8 @@ export const mockSchemes: Scheme[] = [
     id: '1',
     name: 'PM-KISAN (Pradhan Mantri Kisan Samman Nidhi)',
     description: 'Direct income support of ₹6,000 per year to small and marginal farmers in three equal installments.',
+    overview:
+      'Direct income support of ₹6,000 per year to small and marginal farmers in three equal installments.',
     category: 'Agriculture',
     eligibility: 'eligible',
     eligibilitySummary: 'Small & marginal farmers with cultivable land',
@@ -61,6 +69,8 @@ export const mockSchemes: Scheme[] = [
     id: '2',
     name: 'National Scholarship Portal (NSP)',
     description: 'Scholarships for students from economically weaker sections covering tuition fees and other expenses.',
+    overview:
+      'Scholarships for students from economically weaker sections covering tuition fees and other expenses.',
     category: 'Education',
     eligibility: 'eligible',
     eligibilitySummary: 'Students from economically weaker sections',
@@ -101,6 +111,7 @@ export const mockSchemes: Scheme[] = [
     id: '3',
     name: 'Mudra Yojana (Micro Units Development)',
     description: 'Loans up to ₹10 lakhs for small businesses and entrepreneurs without collateral.',
+    overview: 'Loans up to ₹10 lakhs for small businesses and entrepreneurs without collateral.',
     category: 'Business',
     eligibility: 'partial',
     eligibilitySummary: 'Small business owners & entrepreneurs',
@@ -141,6 +152,7 @@ export const mockSchemes: Scheme[] = [
     id: '4',
     name: 'Stand Up India Scheme',
     description: 'Bank loans between ₹10 lakhs to ₹1 crore for SC/ST and women entrepreneurs.',
+    overview: 'Bank loans between ₹10 lakhs to ₹1 crore for SC/ST and women entrepreneurs.',
     category: 'Women Empowerment',
     eligibility: 'eligible',
     eligibilitySummary: 'Women & SC/ST entrepreneurs',
@@ -181,6 +193,8 @@ export const mockSchemes: Scheme[] = [
     id: '5',
     name: 'Ayushman Bharat (PMJAY)',
     description: 'Health insurance coverage of ₹5 lakhs per family per year for secondary and tertiary care hospitalization.',
+    overview:
+      'Health insurance coverage of ₹5 lakhs per family per year for secondary and tertiary care hospitalization.',
     category: 'Healthcare',
     eligibility: 'not-eligible',
     eligibilitySummary: 'Families listed in SECC database',
@@ -220,6 +234,7 @@ export const mockSchemes: Scheme[] = [
     id: '6',
     name: 'Skill India Mission (PMKVY)',
     description: 'Free skill development training with monetary rewards and job placement assistance.',
+    overview: 'Free skill development training with monetary rewards and job placement assistance.',
     category: 'Skill Development',
     eligibility: 'eligible',
     eligibilitySummary: 'Youth seeking skill training',

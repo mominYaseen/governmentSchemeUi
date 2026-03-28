@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Search, Mic, Sparkles } from 'lucide-react';
+import { Link } from 'react-router';
+import { Search, Mic, Sparkles, BookOpen, ListChecks } from 'lucide-react';
 import { Button } from './ui/button';
 import { suggestedPrompts } from '../data/schemes';
 
@@ -11,13 +12,13 @@ export function LandingHero() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim()) {
-      navigate(`/results?q=${encodeURIComponent(query.trim())}`);
+      navigate(`/match?q=${encodeURIComponent(query.trim())}`);
     }
   };
 
   const handleSuggestedPrompt = (prompt: string) => {
     setQuery(prompt);
-    navigate(`/results?q=${encodeURIComponent(prompt)}`);
+    navigate(`/match?q=${encodeURIComponent(prompt)}`);
   };
 
   return (
@@ -90,6 +91,31 @@ export function LandingHero() {
             </div>
           </div>
         </form>
+
+        <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 mb-8">
+          <Button
+            size="lg"
+            variant="secondary"
+            className="min-h-12 text-base rounded-xl"
+            asChild
+          >
+            <Link to="/recommend" className="flex items-center gap-2">
+              <ListChecks className="h-5 w-5" />
+              I know my details
+            </Link>
+          </Button>
+          <Button
+            size="lg"
+            variant="outline"
+            className="min-h-12 text-base rounded-xl bg-white/10 border-white/30 text-white hover:bg-white/20"
+            asChild
+          >
+            <Link to="/catalog" className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5" />
+              Browse catalog
+            </Link>
+          </Button>
+        </div>
 
         {/* Suggested Prompts */}
         <div className="text-center">
